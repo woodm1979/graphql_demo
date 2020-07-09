@@ -2,9 +2,10 @@
 
 import uuid
 
-from flask import Flask
+from flask import Flask, g
 from flask_graphql import GraphQLView
 import graphene
+from graphql import GraphQLError
 
 
 # Fake Database
@@ -66,6 +67,7 @@ class Query(graphene.ObjectType):
     hello = graphene.String(name=graphene.String(default_value="stranger"))
     users = graphene.List(lambda: User, id=graphene.Argument(graphene.String))
     recipes = graphene.List(lambda: Recipe, id=graphene.Argument(graphene.String))
+    me = graphene.Field(lambda: User)
 
     @staticmethod
     def resolve_hello(parent, info, name):
@@ -84,6 +86,15 @@ class Query(graphene.ObjectType):
         if id:
             recipes = [recipe for recipe in recipes if recipe['id'] == id]
         return recipes
+
+    @staticmethod
+    def resolve_me(parent, info):
+        users = [user for user in users_table if user['id'] == info.context['user_id']]
+        if not users:
+            raise GraphQLError('User not logged in')
+        if len(users) > 1:
+            raise GraphQLError("OMG you're a clone!")
+        return users[0]
 
 
 class User(graphene.ObjectType):
@@ -165,9 +176,16 @@ schema = graphene.Schema(
 )
 
 
+def get_logged_in_user_id():
+    # Here we'd process the request's JWT to find a user ID.
+    # Verify that user exists in our system, and return the user's ID.
+    return "e2b23275-3a78-448a-b4c8-8e1c82e4344d"
+
+
 app = Flask(__name__)
 app.add_url_rule('/', view_func=GraphQLView.as_view(
     'graphql',
     schema=schema,
     graphiql=True,
+    get_context=lambda: {'user_id': get_logged_in_user_id()}
 ))
