@@ -1,3 +1,4 @@
 #!/bin/bash
 
-exec uvicorn server:app --reload
+export FLASK_APP=server.py
+flask run

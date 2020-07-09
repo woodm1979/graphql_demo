@@ -1,16 +1,173 @@
 #!/usr/bin/env python
 
-import graphene
-from fastapi import FastAPI
-from starlette.graphql import GraphQLApp
+import uuid
 
+from flask import Flask
+from flask_graphql import GraphQLView
+import graphene
+
+
+# Fake Database
+
+recipes_table = [
+    {
+        'id': "4f56d71c-0988-4dad-97b3-108266827c0c",
+        'name': 'Chocolate Cake',
+    },
+    {
+        'id': "c9f063f4-2121-4394-860c-ed939096390b",
+        'name': 'Spaghetti',
+    },
+    {
+        'id': "62320110-dde3-4068-8b47-2dda783bb3db",
+        'name': 'Brownies',
+    },
+    {
+        'id': "6b912110-3984-4384-a351-7f30595a638d",
+        'name': 'Lasagna',
+    },
+]
+
+users_table = [
+    {
+        'id': "e2b23275-3a78-448a-b4c8-8e1c82e4344d",  # This will be "me"
+        'first_name': 'Samantha',
+        'last_name': 'Stevenson',
+        'recipe_ids': [
+            recipes_table[0]['id'],
+            recipes_table[1]['id'],
+        ],
+    },
+    {
+        'id': "45f82425-2796-4b6a-9db4-b484d9512605",
+        'first_name': 'James',
+        'last_name': 'Jones',
+        'recipe_ids': [
+            recipes_table[2]['id'],
+            recipes_table[3]['id'],
+        ],
+    },
+    {
+        'id': "593dedc5-e22e-482d-a17a-9d350b664abe",
+        'first_name': 'Pat',
+        'last_name': 'Peterson',
+        'recipe_ids': [
+            recipes_table[1]['id'],
+            recipes_table[2]['id'],
+            recipes_table[3]['id'],
+        ],
+    },
+]
+
+
+# Queries
 
 class Query(graphene.ObjectType):
     hello = graphene.String(name=graphene.String(default_value="stranger"))
+    users = graphene.List(lambda: User, id=graphene.Argument(graphene.String))
+    recipes = graphene.List(lambda: Recipe, id=graphene.Argument(graphene.String))
 
-    def resolve_hello(self, info, name):
+    @staticmethod
+    def resolve_hello(parent, info, name):
         return "Hello " + name
 
+    @staticmethod
+    def resolve_users(parent, info, id=None):
+        users = users_table[:]
+        if id:
+            users = [user for user in users if user['id'] == id]
+        return users
 
-app = FastAPI()
-app.add_route("/", GraphQLApp(schema=graphene.Schema(query=Query)))
+    @staticmethod
+    def resolve_recipes(parent, info, id=None):
+        recipes = recipes_table[:]
+        if id:
+            recipes = [recipe for recipe in recipes if recipe['id'] == id]
+        return recipes
+
+
+class User(graphene.ObjectType):
+    id = graphene.NonNull(graphene.ID)
+    first_name = graphene.NonNull(graphene.String)
+    last_name = graphene.NonNull(graphene.String)
+    recipes = graphene.List(lambda: Recipe)
+
+    @staticmethod
+    def resolve_id(parent, info):
+        return parent['id']
+
+    @staticmethod
+    def resolve_first_name(parent, info):
+        return parent['first_name']
+
+    @staticmethod
+    def resolve_last_name(parent, info):
+        return parent['last_name']
+
+    @staticmethod
+    def resolve_recipes(parent, info):
+        # recipes = filter(lambda r: r['id'] in parent['recipe_ids'], recipes_table)
+        recipes = [recipe for recipe in recipes_table if recipe['id'] in parent['recipe_ids']]
+        return recipes
+
+
+class Recipe(graphene.ObjectType):
+    id = graphene.NonNull(graphene.ID)
+    name = graphene.String()
+    users = graphene.List(lambda: User)
+
+    @staticmethod
+    def resolve_id(parent, info):
+        return parent['id']
+
+    @staticmethod
+    def resolve_name(parent, info):
+        return parent['name']
+
+    @staticmethod
+    def resolve_users(parent, info):
+        return [user for user in users_table if parent['id'] in user['recipe_ids']]
+
+
+# Mutations
+
+class AddRecipe(graphene.Mutation):
+    class Arguments:
+        name = graphene.String()
+
+    ok = graphene.Boolean()
+    recipe = graphene.Field(Recipe)
+
+    @staticmethod
+    def mutate(root, info, name):
+        ok = True
+        try:
+            recipe = {
+                'id': uuid.uuid4(),
+                'name': name,
+            }
+            recipes_table.append(recipe)
+        except Exception:
+            ok = False
+            recipe = None
+        return {'ok': ok, 'recipe': recipe}
+
+
+class Mutations(graphene.ObjectType):
+    add_recipe = AddRecipe.Field()
+
+
+# Setup the server
+
+schema = graphene.Schema(
+    query=Query,
+    mutation=Mutations,
+)
+
+
+app = Flask(__name__)
+app.add_url_rule('/', view_func=GraphQLView.as_view(
+    'graphql',
+    schema=schema,
+    graphiql=True,
+))
