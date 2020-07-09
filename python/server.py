@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import logging
 import uuid
 
 from flask import Flask, g
@@ -7,6 +8,7 @@ from flask_graphql import GraphQLView
 import graphene
 from graphql import GraphQLError
 
+logging.basicConfig(level=logging.DEBUG)
 
 # Fake Database
 
@@ -61,6 +63,26 @@ users_table = [
 ]
 
 
+# Fetchers
+def get_all_user_ids():
+    # This code would never even remotely exist in production.
+    # Please forgive this crappy nonsense.
+    # ... cuz demo.
+    return [user['id'] for user in users_table]
+
+
+def get_user_by_id(id):
+    app.logger.info('==========> Fetching user: %s', id)
+    users = [user for user in users_table if user['id'] == id]
+    if not users:
+        return None
+    return users[0]
+
+
+def get_many_users_by_id(ids):
+    return [get_user_by_id(id) for id in ids]
+
+
 # Queries
 
 class Query(graphene.ObjectType):
@@ -75,9 +97,8 @@ class Query(graphene.ObjectType):
 
     @staticmethod
     def resolve_users(parent, info, id=None):
-        users = users_table[:]
-        if id:
-            users = [user for user in users if user['id'] == id]
+        user_ids = [id] if id else get_all_user_ids()
+        users = get_many_users_by_id(user_ids)
         return users
 
     @staticmethod
@@ -89,12 +110,10 @@ class Query(graphene.ObjectType):
 
     @staticmethod
     def resolve_me(parent, info):
-        users = [user for user in users_table if user['id'] == info.context['user_id']]
-        if not users:
+        user = get_user_by_id(info.context['user_id'])
+        if not user:
             raise GraphQLError('User not logged in')
-        if len(users) > 1:
-            raise GraphQLError("OMG you're a clone!")
-        return users[0]
+        return user
 
 
 class User(graphene.ObjectType):
@@ -137,7 +156,8 @@ class Recipe(graphene.ObjectType):
 
     @staticmethod
     def resolve_users(parent, info):
-        return [user for user in users_table if parent['id'] in user['recipe_ids']]
+        user_ids = [user['id'] for user in users_table if parent['id'] in user['recipe_ids']]
+        return get_many_users_by_id(user_ids)
 
 
 # Mutations
