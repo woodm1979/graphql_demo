@@ -8,6 +8,9 @@ from flask_graphql import GraphQLView
 import graphene
 from graphql import GraphQLError
 
+from promise import Promise
+from promise.dataloader import DataLoader
+
 logging.basicConfig(level=logging.DEBUG)
 
 # Fake Database
@@ -83,6 +86,18 @@ def get_many_users_by_id(ids):
     return [get_user_by_id(id) for id in ids]
 
 
+# DataLoader
+
+class UserLoader(DataLoader):
+    def batch_load_fn(self, keys):
+        # Here we return a promise that will result on the
+        # corresponding user for each key in keys
+        return Promise.resolve([get_user_by_id(id=key) for key in keys])
+
+
+user_loader = UserLoader()
+
+
 # Queries
 
 class Query(graphene.ObjectType):
@@ -98,7 +113,8 @@ class Query(graphene.ObjectType):
     @staticmethod
     def resolve_users(parent, info, id=None):
         user_ids = [id] if id else get_all_user_ids()
-        users = get_many_users_by_id(user_ids)
+        # users = get_many_users_by_id(user_ids)
+        users = user_loader.load_many(user_ids)
         return users
 
     @staticmethod
@@ -110,7 +126,8 @@ class Query(graphene.ObjectType):
 
     @staticmethod
     def resolve_me(parent, info):
-        user = get_user_by_id(info.context['user_id'])
+        # user = get_user_by_id(info.context['user_id'])
+        user = user_loader.load(info.context['user_id'])
         if not user:
             raise GraphQLError('User not logged in')
         return user
@@ -157,7 +174,8 @@ class Recipe(graphene.ObjectType):
     @staticmethod
     def resolve_users(parent, info):
         user_ids = [user['id'] for user in users_table if parent['id'] in user['recipe_ids']]
-        return get_many_users_by_id(user_ids)
+        # return get_many_users_by_id(user_ids)
+        return user_loader.load_many(user_ids)
 
 
 # Mutations
