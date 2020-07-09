@@ -139,17 +139,17 @@ class User(graphene.ObjectType):
     last_name = graphene.NonNull(graphene.String)
     recipes = graphene.List(lambda: Recipe)
 
-    @staticmethod
-    def resolve_id(parent, info):
-        return parent['id']
-
-    @staticmethod
-    def resolve_first_name(parent, info):
-        return parent['first_name']
-
-    @staticmethod
-    def resolve_last_name(parent, info):
-        return parent['last_name']
+    # @staticmethod
+    # def resolve_id(parent, info):
+    #     return parent['id']
+    #
+    # @staticmethod
+    # def resolve_first_name(parent, info):
+    #     return parent['first_name']
+    #
+    # @staticmethod
+    # def resolve_last_name(parent, info):
+    #     return parent['last_name']
 
     @staticmethod
     def resolve_recipes(parent, info):
@@ -163,13 +163,13 @@ class Recipe(graphene.ObjectType):
     name = graphene.String()
     users = graphene.List(lambda: User)
 
-    @staticmethod
-    def resolve_id(parent, info):
-        return parent['id']
-
-    @staticmethod
-    def resolve_name(parent, info):
-        return parent['name']
+    # @staticmethod
+    # def resolve_id(parent, info):
+    #     return parent['id']
+    #
+    # @staticmethod
+    # def resolve_name(parent, info):
+    #     return parent['name']
 
     @staticmethod
     def resolve_users(parent, info):
